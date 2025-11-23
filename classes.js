@@ -127,6 +127,7 @@ class Cat {
         this.isPlaying = false;
         this.playTimer = 0;
         this.playPartner = null; // Another cat to play with
+        this.playCooldown = 0; // Cooldown period after playing
         this.sleepIndicator = null; // Text showing "Zzzz"
         this.playIndicator = null; // Text showing "!"
 
@@ -224,6 +225,11 @@ class Cat {
             this.playIndicator.y = this.sprite.y - 40;
         }
 
+        // Handle play cooldown timer (prevents immediate re-play)
+        if (this.playCooldown > 0) {
+            this.playCooldown--;
+        }
+
         // Handle playing timer
         if (this.playTimer > 0) {
             this.playTimer--;
@@ -231,6 +237,8 @@ class Cat {
                 this.isPlaying = false;
                 this.playPartner = null;
                 this.hidePlayIndicator();
+                // Start cooldown period (5 seconds at 60 FPS)
+                this.playCooldown = 300;
             }
             return;
         }
@@ -297,10 +305,11 @@ class Cat {
             this.targetFood = null;
         }
 
-        // Check for collision with other cats
-        if (!this.isPlaying && !this.isSleeping && otherCats) {
+        // Check for collision with other cats (only if not in cooldown)
+        if (!this.isPlaying && !this.isSleeping && this.playCooldown === 0 && otherCats) {
             for (let otherCat of otherCats) {
-                if (otherCat === this || otherCat.isPlaying || otherCat.isSleeping) continue;
+                // Skip if other cat is busy, is this cat, or is in cooldown
+                if (otherCat === this || otherCat.isPlaying || otherCat.isSleeping || otherCat.playCooldown > 0) continue;
 
                 const dx = otherCat.gridX - this.gridX;
                 const dy = otherCat.gridY - this.gridY;
