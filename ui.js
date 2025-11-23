@@ -70,6 +70,8 @@ function createFoodMenu(scene) {
 }
 
 function setupDragAndDrop(scene) {
+    let draggedBedInstance = null; // Track if we're moving an existing bed
+
     scene.input.on('dragstart', function(pointer, gameObject) {
         const itemType = gameObject.getData('itemType');
         const frameIndex = gameObject.getData('frameIndex');
@@ -79,11 +81,35 @@ function setupDragAndDrop(scene) {
             draggedItemSprite.setScale(0.6);
             draggedItemType = 'food';
             draggedItemFrame = frameIndex;
+            draggedBedInstance = null;
         } else if (itemType === 'bed') {
             draggedItemSprite = scene.add.sprite(0, 0, 'beds', frameIndex);
             draggedItemSprite.setScale(0.5);
             draggedItemType = 'bed';
             draggedItemFrame = frameIndex;
+            draggedBedInstance = null;
+        } else if (itemType === 'placedBed') {
+            // Moving an existing bed
+            const bedInstance = gameObject.getData('bedInstance');
+            draggedBedInstance = bedInstance;
+            draggedItemSprite = scene.add.sprite(0, 0, 'beds', bedInstance.frameIndex);
+            draggedItemSprite.setScale(0.5);
+            draggedItemType = 'placedBed';
+            draggedItemFrame = bedInstance.frameIndex;
+
+            // Hide the original bed sprite while dragging
+            bedInstance.sprite.setVisible(false);
+
+            // If a cat is sleeping in this bed, wake them up
+            if (bedInstance.occupied) {
+                // Find the cat using this bed and wake them up
+                for (let cat of cats) {
+                    if (cat.currentBed === bedInstance) {
+                        cat.wakeUp();
+                    }
+                }
+                bedInstance.occupied = false;
+            }
         }
 
         if (draggedItemSprite) {
@@ -119,12 +145,30 @@ function setupDragAndDrop(scene) {
                     if (draggedItemType === 'food') {
                         const food = new Food(scene, gridPos.x, gridPos.y, draggedItemFrame, true);
                         foodItems.push(food);
-                    } else if (draggedItemType === 'bed') {
+                    } else if (draggedItemType === 'bed' || draggedItemType === 'placedBed') {
+                        if (draggedBedInstance) {
+                            // Moving existing bed - remove old one and create new one at new position
+                            const index = beds.indexOf(draggedBedInstance);
+                            if (index > -1) {
+                                beds.splice(index, 1);
+                            }
+                            draggedBedInstance.sprite.destroy();
+                        }
+                        // Create new bed at dropped location
                         const bed = new Bed(scene, gridPos.x, gridPos.y, draggedItemFrame);
                         beds.push(bed);
                     }
                 } else {
                     console.log(`${draggedItemType} placement out of bounds: grid (${gridPos.x}, ${gridPos.y})`);
+                    // If it was a placed bed that's out of bounds, restore it
+                    if (draggedBedInstance) {
+                        draggedBedInstance.sprite.setVisible(true);
+                    }
+                }
+            } else {
+                // Dropped in menu area - restore bed if it was a placed bed
+                if (draggedBedInstance) {
+                    draggedBedInstance.sprite.setVisible(true);
                 }
             }
 
@@ -133,6 +177,7 @@ function setupDragAndDrop(scene) {
             draggedItemSprite = null;
             draggedItemType = null;
             draggedItemFrame = null;
+            draggedBedInstance = null;
         }
     });
 }

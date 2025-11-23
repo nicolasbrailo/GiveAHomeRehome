@@ -141,18 +141,47 @@ function create() {
     // Create the room
     createRoom(this, ROOM_WIDTH, ROOM_HEIGHT, roomTiles);
 
+    // Track occupied positions to prevent overlaps
+    const occupiedPositions = [];
+
+    // Helper function to check if position is too close to occupied positions
+    function isPositionValid(x, y, minDistance = 2) {
+        for (let pos of occupiedPositions) {
+            const distance = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(y - pos.y, 2));
+            if (distance < minDistance) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Helper function to find a valid random position
+    function findValidPosition(minDistance = 2, maxAttempts = 50) {
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const x = 3 + Math.floor(Math.random() * (ROOM_WIDTH - 6));
+            const y = 3 + Math.floor(Math.random() * (ROOM_HEIGHT - 6));
+            if (isPositionValid(x, y, minDistance)) {
+                return { x, y };
+            }
+        }
+        // If no valid position found after max attempts, return null
+        return null;
+    }
+
     // Spawn carpets randomly (before furniture to maintain depth order)
     const numCarpets = 2;
     const carpetFrameCount = this.textures.get('carpets').frameTotal;
     for (let i = 0; i < numCarpets; i++) {
         const frameIndex = Math.floor(Math.random() * carpetFrameCount);
-        const randomX = 3 + Math.floor(Math.random() * (ROOM_WIDTH - 6));
-        const randomY = 3 + Math.floor(Math.random() * (ROOM_HEIGHT - 6));
-        carpets.push(new Carpet(this, randomX, randomY, frameIndex));
+        const pos = findValidPosition(3); // Carpets need 3 tile minimum spacing
+        if (pos) {
+            carpets.push(new Carpet(this, pos.x, pos.y, frameIndex));
+            occupiedPositions.push(pos);
+        }
     }
 
-    // Create furniture
-    createFurniture(this);
+    // Create furniture (pass occupied positions to avoid overlaps)
+    createFurnitureWithSpacing(this, occupiedPositions);
 
     // Create cats with random sprites
     const catTypeKeys = Object.keys(CAT_TYPES);

@@ -66,41 +66,40 @@ function drawWalls(scene, roomWidth, roomHeight, wallTextureFrame) {
     graphics.closePath();
     graphics.fillPath();
 
-    // Left wall - draw as continuous isometric panels
-    for (let y = 0; y < roomHeight; y++) {
-        const pos = ISO.toScreen(0, y);
-        const nextPos = ISO.toScreen(0, y + 1);
+    // Left wall - draw as continuous smooth surface
+    const leftWallStartPos = ISO.toScreen(0, 0);
+    const leftWallEndPos = ISO.toScreen(0, roomHeight - 1);
 
-        // Main panel (angled face)
-        graphics.fillStyle(0xA0826D, 1); // Opaque
-        graphics.beginPath();
-        graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
-        graphics.lineTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-        graphics.lineTo(nextPos.x, nextPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-        graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
-        graphics.closePath();
-        graphics.fillPath();
+    // Left wall main vertical face (smooth, single color)
+    graphics.fillStyle(0x9B8579, 1);
+    graphics.beginPath();
+    graphics.moveTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallStartPos.y - WALL_HEIGHT);
+    graphics.lineTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y + ISO.TILE_HEIGHT / 2 + FLOOR_EXTENSION);
+    graphics.lineTo(leftWallEndPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y + ISO.TILE_HEIGHT / 2 + FLOOR_EXTENSION);
+    graphics.lineTo(leftWallEndPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+    graphics.lineTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallStartPos.y - WALL_HEIGHT);
+    graphics.closePath();
+    graphics.fillPath();
 
-        // Left face (darker vertical face) - extended to floor
-        graphics.fillStyle(0x8B8679, 1); // Opaque
-        graphics.beginPath();
-        graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
-        graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y + FLOOR_EXTENSION);
-        graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y + FLOOR_EXTENSION);
-        graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
-        graphics.closePath();
-        graphics.fillPath();
+    // Left wall angled face (smooth surface)
+    graphics.fillStyle(0xB09A86, 1);
+    graphics.beginPath();
+    graphics.moveTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallStartPos.y - WALL_HEIGHT);
+    graphics.lineTo(leftWallStartPos.x, leftWallStartPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+    graphics.lineTo(leftWallEndPos.x, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+    graphics.lineTo(leftWallEndPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+    graphics.closePath();
+    graphics.fillPath();
 
-        // Top edge - extended to floor
-        graphics.fillStyle(0xBFA98A, 1); // Opaque
-        graphics.beginPath();
-        graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
-        graphics.lineTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-        graphics.lineTo(pos.x, pos.y + ISO.TILE_HEIGHT / 2 + FLOOR_EXTENSION);
-        graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y + FLOOR_EXTENSION);
-        graphics.closePath();
-        graphics.fillPath();
-    }
+    // Left wall gradient overlay for depth (subtle)
+    graphics.fillStyle(0x7D6D5F, 0.2);
+    graphics.beginPath();
+    graphics.moveTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallStartPos.y - WALL_HEIGHT);
+    graphics.lineTo(leftWallStartPos.x, leftWallStartPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+    graphics.lineTo(leftWallEndPos.x, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+    graphics.lineTo(leftWallEndPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+    graphics.closePath();
+    graphics.fillPath();
 
     // Right wall removed - only back and left walls remain
 

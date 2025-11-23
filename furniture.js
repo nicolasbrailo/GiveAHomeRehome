@@ -20,6 +20,79 @@ function createFurniture(scene) {
     createBowls(scene, 7, 9);
 }
 
+function createFurnitureWithSpacing(scene, occupiedPositions) {
+    // Predefined positions for furniture that won't overlap
+    const furniturePositions = [
+        { type: 'catTree', x: 2, y: 2 },
+        { type: 'catTree', x: 13, y: 9 },
+        { type: 'catBed', x: 13, y: 2 },
+        { type: 'catBed', x: 3, y: 9 },
+        { type: 'toyBox', x: 8, y: 3 },
+        { type: 'toyBox', x: 5, y: 8 },
+        { type: 'bowls', x: 11, y: 6 },
+        { type: 'bowls', x: 7, y: 9 }
+    ];
+
+    // Helper to check if position is valid
+    function isPositionValid(x, y, minDistance = 2.5) {
+        for (let pos of occupiedPositions) {
+            const distance = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(y - pos.y, 2));
+            if (distance < minDistance) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Helper to find nearby valid position
+    function findNearbyPosition(preferredX, preferredY, maxAttempts = 30) {
+        // Try the preferred position first
+        if (isPositionValid(preferredX, preferredY)) {
+            return { x: preferredX, y: preferredY };
+        }
+
+        // Try positions in a spiral around the preferred location
+        for (let radius = 1; radius <= 5; radius++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                for (let dy = -radius; dy <= radius; dy++) {
+                    if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
+                        const x = preferredX + dx;
+                        const y = preferredY + dy;
+                        if (x >= 2 && x < ROOM_WIDTH - 2 && y >= 2 && y < ROOM_HEIGHT - 2) {
+                            if (isPositionValid(x, y)) {
+                                return { x, y };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    // Place furniture at valid positions
+    for (let item of furniturePositions) {
+        const pos = findNearbyPosition(item.x, item.y);
+        if (pos) {
+            switch (item.type) {
+                case 'catTree':
+                    createCatTree(scene, pos.x, pos.y);
+                    break;
+                case 'catBed':
+                    createCatBed(scene, pos.x, pos.y);
+                    break;
+                case 'toyBox':
+                    createToyBox(scene, pos.x, pos.y);
+                    break;
+                case 'bowls':
+                    createBowls(scene, pos.x, pos.y);
+                    break;
+            }
+            occupiedPositions.push(pos);
+        }
+    }
+}
+
 function createCatTree(scene, gridX, gridY) {
     const pos = ISO.toScreen(gridX, gridY);
     const graphics = scene.add.graphics();

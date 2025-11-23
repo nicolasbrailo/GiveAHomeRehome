@@ -48,6 +48,7 @@ class Bed {
         this.gridX = gridX;
         this.gridY = gridY;
         this.occupied = false; // Is a cat sleeping in this bed
+        this.frameIndex = frameIndex;
 
         // Create bed sprite
         const pos = ISO.toScreen(gridX, gridY);
@@ -55,6 +56,21 @@ class Bed {
         this.sprite.setOrigin(0.5, 0.8);
         this.sprite.setScale(0.5); // Adjusted for 120x92 sprites
         this.sprite.setDepth(50 + gridX + gridY);
+
+        // Make bed interactive and draggable
+        this.sprite.setInteractive({ draggable: true });
+        this.sprite.setData('itemType', 'placedBed');
+        this.sprite.setData('bedInstance', this);
+
+        // Add hover effect
+        this.sprite.on('pointerover', function() {
+            if (!this.getData('bedInstance').occupied) {
+                this.setTint(0xcccccc);
+            }
+        });
+        this.sprite.on('pointerout', function() {
+            this.clearTint();
+        });
     }
 
     checkNearby(cat) {
@@ -293,7 +309,7 @@ class Cat {
                 if (distance < 0.3) {
                     // Collision! Start playing
                     this.isPlaying = true;
-                    this.playTimer = 120; // Play for 2 seconds
+                    this.playTimer = 300; // Play for 5 seconds (60 FPS * 5)
                     this.playPartner = otherCat;
                     this.isMoving = false;
                     this.sprite.play(`${this.catType}_walk_anim`); // Use walk animation for jumping
@@ -302,7 +318,7 @@ class Cat {
 
                     // Make the other cat play too
                     otherCat.isPlaying = true;
-                    otherCat.playTimer = 120;
+                    otherCat.playTimer = 300; // Play for 5 seconds (60 FPS * 5)
                     otherCat.playPartner = this;
                     otherCat.isMoving = false;
                     otherCat.sprite.play(`${otherCat.catType}_walk_anim`);
