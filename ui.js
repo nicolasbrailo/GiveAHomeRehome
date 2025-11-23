@@ -73,6 +73,8 @@ function setupDragAndDrop(scene) {
     let draggedBedInstance = null; // Track if we're moving an existing bed
 
     scene.input.on('dragstart', function(pointer, gameObject) {
+        // Prevent camera dragging when dragging items
+        isCameraDragging = false;
         const itemType = gameObject.getData('itemType');
         const frameIndex = gameObject.getData('frameIndex');
 

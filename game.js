@@ -33,6 +33,9 @@ let draggedItemSprite = null;
 let draggedItemType = null;
 let draggedItemFrame = null;
 let cursors = null;
+let isCameraDragging = false;
+let cameraDragStart = null;
+let lastCameraPosition = null;
 const ROOM_WIDTH = 16;
 const ROOM_HEIGHT = 12;
 const FOOD_TYPES = 6; // 255÷64 = 3 cols × 188÷64 = 2 rows = ~6 frames
@@ -205,6 +208,55 @@ function create() {
 
     // Setup keyboard controls for camera
     cursors = this.input.keyboard.createCursorKeys();
+
+    // Setup touch/mouse controls for camera panning
+    setupCameraControls(this);
+}
+
+function setupCameraControls(scene) {
+    let pointerDownTime = 0;
+
+    // Track pointer down on empty space (not on draggable items)
+    scene.input.on('pointerdown', function(pointer) {
+        pointerDownTime = Date.now();
+
+        // Check if pointer is over a draggable object
+        const objectsUnderPointer = scene.input.hitTestPointer(pointer);
+        const isDraggableObject = objectsUnderPointer.some(obj => obj.input && obj.input.draggable);
+
+        // Only start camera drag if not clicking on a draggable item and below menu
+        if (pointer.y > 70 && !isDraggableObject) {
+            // Add small delay to distinguish tap from drag
+            setTimeout(() => {
+                if (Date.now() - pointerDownTime > 100 && pointer.isDown) {
+                    isCameraDragging = true;
+                    cameraDragStart = { x: pointer.x, y: pointer.y };
+                    lastCameraPosition = {
+                        x: scene.cameras.main.scrollX,
+                        y: scene.cameras.main.scrollY
+                    };
+                }
+            }, 100);
+        }
+    });
+
+    scene.input.on('pointermove', function(pointer) {
+        if (isCameraDragging && cameraDragStart && lastCameraPosition) {
+            // Calculate delta from drag start
+            const deltaX = cameraDragStart.x - pointer.x;
+            const deltaY = cameraDragStart.y - pointer.y;
+
+            // Move camera based on drag (inverted for natural feel)
+            scene.cameras.main.scrollX = lastCameraPosition.x + deltaX;
+            scene.cameras.main.scrollY = lastCameraPosition.y + deltaY;
+        }
+    });
+
+    scene.input.on('pointerup', function(pointer) {
+        isCameraDragging = false;
+        cameraDragStart = null;
+        lastCameraPosition = null;
+    });
 }
 
 function update() {
