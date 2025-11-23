@@ -66,38 +66,27 @@ function drawWalls(scene, roomWidth, roomHeight, wallTextureFrame) {
     graphics.closePath();
     graphics.fillPath();
 
-    // Left wall - draw as continuous smooth surface
-    const leftWallStartPos = ISO.toScreen(0, 0);
-    const leftWallEndPos = ISO.toScreen(0, roomHeight - 1);
+    // Left wall - ONE smooth continuous parallelogram
+    const leftWallTop = ISO.toScreen(0, 0);
+    const leftWallBottom = ISO.toScreen(0, roomHeight);
 
-    // Left wall main vertical face (smooth, single color)
-    graphics.fillStyle(0x9B8579, 1);
+    // Draw left wall as single smooth surface (parallelogram from top to floor)
+    graphics.fillStyle(0xA0826D, 1);
     graphics.beginPath();
-    graphics.moveTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallStartPos.y - WALL_HEIGHT);
-    graphics.lineTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y + ISO.TILE_HEIGHT / 2 + FLOOR_EXTENSION);
-    graphics.lineTo(leftWallEndPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y + ISO.TILE_HEIGHT / 2 + FLOOR_EXTENSION);
-    graphics.lineTo(leftWallEndPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-    graphics.lineTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallStartPos.y - WALL_HEIGHT);
+    graphics.moveTo(leftWallTop.x - ISO.TILE_WIDTH / 2, leftWallTop.y - WALL_HEIGHT);
+    graphics.lineTo(leftWallBottom.x - ISO.TILE_WIDTH / 2, leftWallBottom.y - WALL_HEIGHT);
+    graphics.lineTo(leftWallBottom.x - ISO.TILE_WIDTH / 2, leftWallBottom.y + FLOOR_EXTENSION);
+    graphics.lineTo(leftWallTop.x - ISO.TILE_WIDTH / 2, leftWallTop.y + FLOOR_EXTENSION);
     graphics.closePath();
     graphics.fillPath();
 
-    // Left wall angled face (smooth surface)
-    graphics.fillStyle(0xB09A86, 1);
+    // Subtle gradient overlay for depth
+    graphics.fillStyle(0x8D7360, 0.25);
     graphics.beginPath();
-    graphics.moveTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallStartPos.y - WALL_HEIGHT);
-    graphics.lineTo(leftWallStartPos.x, leftWallStartPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-    graphics.lineTo(leftWallEndPos.x, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-    graphics.lineTo(leftWallEndPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-    graphics.closePath();
-    graphics.fillPath();
-
-    // Left wall gradient overlay for depth (subtle)
-    graphics.fillStyle(0x7D6D5F, 0.2);
-    graphics.beginPath();
-    graphics.moveTo(leftWallStartPos.x - ISO.TILE_WIDTH / 2, leftWallStartPos.y - WALL_HEIGHT);
-    graphics.lineTo(leftWallStartPos.x, leftWallStartPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-    graphics.lineTo(leftWallEndPos.x, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-    graphics.lineTo(leftWallEndPos.x - ISO.TILE_WIDTH / 2, leftWallEndPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+    graphics.moveTo(leftWallTop.x - ISO.TILE_WIDTH / 2, leftWallTop.y - WALL_HEIGHT);
+    graphics.lineTo(leftWallBottom.x - ISO.TILE_WIDTH / 2, leftWallBottom.y - WALL_HEIGHT);
+    graphics.lineTo(leftWallBottom.x - ISO.TILE_WIDTH / 2, leftWallBottom.y - WALL_HEIGHT / 2);
+    graphics.lineTo(leftWallTop.x - ISO.TILE_WIDTH / 2, leftWallTop.y - WALL_HEIGHT / 2);
     graphics.closePath();
     graphics.fillPath();
 
