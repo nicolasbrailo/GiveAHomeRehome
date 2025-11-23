@@ -15,8 +15,9 @@ An interactive browser-based game featuring an isometric cat playroom where user
 ```
 /home/batman/src/GiveAHomeRehome/
 ├── index.html          # Main HTML entry point
-├── game.js             # Main game logic (650+ lines)
+├── game.js             # Main game logic (950+ lines)
 ├── context.md          # This file
+├── sprite-test.html    # Sprite sheet testing tool
 └── assets/
     ├── AllCatsDemo/    # Cat sprite sheets
     │   ├── BatmanCatFree/
@@ -30,8 +31,12 @@ An interactive browser-based game featuring an isometric cat playroom where user
     │   ├── TigerCatFree/
     │   ├── White/
     │   └── Xmas/
-    └── CatInteraction/
-        └── food.png    # Food sprite sheet (263x188, 40 frames in 8x5 grid)
+    ├── CatInteraction/
+    │   ├── food.png    # Food sprite sheet (255x188, 64x64 frames)
+    │   └── beds.png    # Bed sprite sheet (237x181, 120x92 frames)
+    └── Room/
+        ├── walls.png   # Wall textures (140x96 frames)
+        └── carpets.png # Carpet textures (143x96 frames)
 ```
 
 ### Key Features Implemented
@@ -44,11 +49,14 @@ An interactive browser-based game featuring an isometric cat playroom where user
 #### 2. Room & Environment
 - **Room size**: 16x12 grid tiles
 - **Canvas size**: 800x600 pixels
-- **Floor**: Tan colored diamond-shaped tiles
-- **Walls**: Brown perimeter walls
+- **Floor**: Textured tiles using random wall sprite (140x96 scaled to 0.5)
+- **Walls**: Textured back and left walls (right wall removed for camera view)
+  - Wall textures overlaid on 3D isometric wall structure
+  - Random texture selected from walls.png sprite sheet
+- **Carpets**: 2 random carpets placed in room (143x96 frames, scaled to 0.5)
 - **Furniture**:
   - 2 cat trees (brown, with platforms)
-  - 2 pink cat beds
+  - 4 pink cat beds (120x92 sprites)
   - 2 blue toy boxes
   - 2 sets of food/water bowls
 
@@ -94,11 +102,13 @@ An interactive browser-based game featuring an isometric cat playroom where user
 
 #### 6. Depth Sorting System
 Ensures proper rendering order:
-- **Depth 0**: Floor tiles
-- **Depth 10**: Walls
-- **Depth 50 + (gridX + gridY)**: Furniture and placed food
-- **Depth 100 + (gridX + gridY)**: Cats
-- **Depth 1000+**: UI elements
+- **Depth 0**: Floor tiles (textured sprites)
+- **Depth 5 + (gridX + gridY)**: Carpets (5-27 for 16x12 room)
+- **Depth 10**: Walls and wall textures
+- **Depth 50 + (gridX + gridY)**: Furniture, beds, and placed food (50-78)
+- **Depth 100 + (gridX + gridY)**: Cats (100-128)
+- **Depth 200**: Cat state indicators (Zzzz, !)
+- **Depth 1000+**: UI elements (menu, text)
 - **Depth 2000**: Dragged food preview
 
 ### Technical Details
@@ -132,10 +142,13 @@ screenPos = ISO.toScreen(gridX, gridY)
 - **UI elements (menu, text)**: scrollFactor = 0 (fixed to camera)
 - **Dragged food preview**: scrollFactor = 0 (follows cursor exactly)
 
-### Game Variables (game.js:235-246)
+### Game Variables (game.js:444-456)
 ```javascript
 let cats = [];              // Array of Cat instances
 let foodItems = [];         // Array of Food instances
+let beds = [];              // Array of Bed instances
+let carpets = [];           // Array of Carpet instances
+let roomTiles = [];         // Array of floor tile sprites
 let gameScene = null;       // Reference to Phaser scene
 let foodMenu = [];          // UI food icons
 let draggedFood = null;     // Currently dragged food frame index
@@ -143,7 +156,8 @@ let draggedFoodSprite = null; // Dragged sprite object
 let cursors = null;         // Arrow key input
 const ROOM_WIDTH = 16;      // Grid width
 const ROOM_HEIGHT = 12;     // Grid height
-const FOOD_TYPES = 40;      // Number of food sprites
+const FOOD_TYPES = 6;       // Number of food sprites
+const BED_TYPES = 2;        // Number of bed sprites
 const CAMERA_SPEED = 5;     // Camera pan speed
 ```
 
@@ -189,6 +203,18 @@ python3 -m http.server 8000
 - ✅ Fixed food placement bounds checking
 - ✅ Cats properly render above floor tiles
 - ✅ Camera movement works with drag & drop
+- ✅ Fixed Zzzz indicators not disappearing when cats wake/move
+- ✅ Fixed sprite frame sizes (food: 64x64, beds: 120x92)
+- ✅ Walls extended to reach floor properly
+- ✅ Removed right wall for better camera view
+
+### Recent Features Added
+- ✅ Bed system with sleeping behavior (3-6 seconds)
+- ✅ Cat-to-cat collision and playing behavior (2 seconds)
+- ✅ Visual indicators (Zzzz for sleep, ! for play)
+- ✅ Textured room rendering (walls and floor use random textures from walls.png)
+- ✅ Carpet system (2 random carpets from carpets.png)
+- ✅ Proper depth sorting: room → carpets → furniture → cats
 
 ### Potential Next Steps
 1. Add camera bounds to prevent scrolling off-room
@@ -209,9 +235,19 @@ python3 -m http.server 8000
   - Constructor: `(scene, gridX, gridY, frameIndex, isFresh)`
   - Methods: `checkCollision(cat)`, `eat()`
 
+- **Bed**: Manages bed sprites for cats to sleep in
+  - Constructor: `(scene, gridX, gridY, frameIndex)`
+  - Methods: `checkNearby(cat)`
+  - Properties: `occupied` (boolean)
+
+- **Carpet**: Manages decorative carpet sprites
+  - Constructor: `(scene, gridX, gridY, frameIndex)`
+  - Depth: 5 + (gridX + gridY) to render above floor but below furniture
+
 - **Cat**: Manages individual cat behavior
   - Constructor: `(scene, gridX, gridY, catType)`
-  - Methods: `pickNewTarget(roomWidth, roomHeight)`, `update(roomWidth, roomHeight, foodItems)`
+  - Methods: `pickNewTarget(roomWidth, roomHeight)`, `update(roomWidth, roomHeight, foodItems, beds, otherCats)`, `wakeUp()`, `showSleepIndicator()`, `hideSleepIndicator()`, `showPlayIndicator()`, `hidePlayIndicator()`
+  - Properties: `isSleeping`, `isEating`, `isPlaying`, `isMoving`, `targetFood`, `currentBed`, `playPartner`
 
 #### Main Functions
 - `preload()`: Load all sprite assets
@@ -224,10 +260,13 @@ python3 -m http.server 8000
 - `setupDragAndDrop(scene)`: Setup input handlers
 
 ### Asset Requirements
-- Cat sprites must be 32x32 frame size
-- Each cat needs idle and walk sprite sheets
-- Food sprite sheet should be evenly divided grid
+- **Cat sprites**: 32x32 frame size (idle and walk animations)
+- **Food sprites**: 64x64 frame size (food.png)
+- **Bed sprites**: 120x92 frame size (beds.png)
+- **Wall textures**: 140x96 frame size (walls.png, used for both walls and floor)
+- **Carpet textures**: 143x96 frame size (carpets.png)
 - All sprites should be PNG with transparency
+- Sprite sheets should use evenly divided grids
 
 ### Performance Notes
 - Game runs at 60 FPS (Phaser default)
@@ -241,5 +280,5 @@ python3 -m http.server 8000
 - Use console to inspect `cats` and `foodItems` arrays
 - Check sprite loading in Network tab if assets don't appear
 
-## Session Date
-November 23, 2025
+## Session Dates
+- November 23, 2025 (Initial development and carpet/wall texture implementation)

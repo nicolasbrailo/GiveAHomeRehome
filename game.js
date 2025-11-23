@@ -91,6 +91,25 @@ class Bed {
 }
 
 // ===========================
+// CARPET CLASS
+// ===========================
+
+class Carpet {
+    constructor(scene, gridX, gridY, frameIndex) {
+        this.scene = scene;
+        this.gridX = gridX;
+        this.gridY = gridY;
+
+        // Create carpet sprite
+        const pos = ISO.toScreen(gridX, gridY);
+        this.sprite = scene.add.sprite(pos.x, pos.y, 'carpets', frameIndex);
+        this.sprite.setOrigin(0.5, 0.8);
+        this.sprite.setScale(0.5); // Adjusted for 143x96 sprites
+        this.sprite.setDepth(5 + gridX + gridY); // Above floor (0) but below furniture (50+)
+    }
+}
+
+// ===========================
 // CAT CLASS
 // ===========================
 
@@ -189,7 +208,7 @@ class Cat {
     }
 
     update(roomWidth, roomHeight, foodItems, beds, otherCats) {
-        // Clean up indicators if state has changed
+        // Clean up indicators if state has changed (do this first, before any other logic)
         if (this.sleepIndicator && !this.isSleeping) {
             this.hideSleepIndicator();
         }
@@ -197,8 +216,13 @@ class Cat {
             this.hidePlayIndicator();
         }
 
-        // Update indicator positions to follow cat
-        if (this.sleepIndicator && this.isSleeping) {
+        // Hide sleep indicator if cat is moving, eating, or playing
+        if (this.sleepIndicator && (this.isMoving || this.isEating || this.isPlaying)) {
+            this.hideSleepIndicator();
+        }
+
+        // Update indicator positions to follow cat (only if in correct state)
+        if (this.sleepIndicator && this.isSleeping && !this.isMoving) {
             this.sleepIndicator.x = this.sprite.x;
             this.sleepIndicator.y = this.sprite.y - 40;
         }
@@ -251,6 +275,7 @@ class Cat {
                     this.eatingTimer = 90; // Eat for 1.5 seconds
                     this.isMoving = false;
                     this.sprite.play(`${this.catType}_idle_anim`);
+                    this.hideSleepIndicator(); // Make sure sleep indicator is gone when eating
                     food.eat();
                     this.targetFood = null;
                     return;
@@ -295,6 +320,7 @@ class Cat {
                     this.playPartner = otherCat;
                     this.isMoving = false;
                     this.sprite.play(`${this.catType}_walk_anim`); // Use walk animation for jumping
+                    this.hideSleepIndicator(); // Make sure sleep indicator is gone when playing
                     this.showPlayIndicator();
 
                     // Make the other cat play too
@@ -303,6 +329,7 @@ class Cat {
                     otherCat.playPartner = this;
                     otherCat.isMoving = false;
                     otherCat.sprite.play(`${otherCat.catType}_walk_anim`);
+                    otherCat.hideSleepIndicator(); // Make sure sleep indicator is gone when playing
                     otherCat.showPlayIndicator();
                     return;
                 }
@@ -362,6 +389,8 @@ class Cat {
         if (!this.isMoving) {
             this.isMoving = true;
             this.sprite.play(`${this.catType}_walk_anim`);
+            // Make sure to hide sleep indicator when starting to move
+            this.hideSleepIndicator();
         }
 
         // Move toward target (faster if running to food)
@@ -415,6 +444,7 @@ const game = new Phaser.Game(config);
 let cats = [];
 let foodItems = [];
 let beds = [];
+let carpets = [];
 let roomTiles = [];
 let gameScene = null;
 let foodMenu = [];
@@ -483,7 +513,19 @@ function preload() {
         frameHeight: 92
     });
 
-    console.log(`Loaded ${availableCatTypes.length} cat types, food sprites, and bed sprites`);
+    // Load wall textures
+    this.load.spritesheet('walls', 'assets/Room/walls.png', {
+        frameWidth: 140,
+        frameHeight: 96
+    });
+
+    // Load carpet textures
+    this.load.spritesheet('carpets', 'assets/Room/carpets.png', {
+        frameWidth: 143,
+        frameHeight: 96
+    });
+
+    console.log(`Loaded ${availableCatTypes.length} cat types, food sprites, bed sprites, wall textures, and carpet textures`);
 }
 
 function create() {
@@ -516,6 +558,16 @@ function create() {
 
     // Create the room
     createRoom(this);
+
+    // Spawn carpets randomly (before furniture to maintain depth order)
+    const numCarpets = 2;
+    const carpetFrameCount = this.textures.get('carpets').frameTotal;
+    for (let i = 0; i < numCarpets; i++) {
+        const frameIndex = Math.floor(Math.random() * carpetFrameCount);
+        const randomX = 3 + Math.floor(Math.random() * (ROOM_WIDTH - 6));
+        const randomY = 3 + Math.floor(Math.random() * (ROOM_HEIGHT - 6));
+        carpets.push(new Carpet(this, randomX, randomY, frameIndex));
+    }
 
     // Create furniture
     createFurniture(this);
@@ -554,34 +606,29 @@ function create() {
 }
 
 function createRoom(scene) {
-    const graphics = scene.add.graphics();
+    // Pick random textures for floor and walls
+    const wallFrameCount = scene.textures.get('walls').frameTotal;
+    const floorTextureFrame = Math.floor(Math.random() * wallFrameCount);
+    const wallTextureFrame = Math.floor(Math.random() * wallFrameCount);
 
-    // Draw floor tiles
+    // Draw floor tiles using random texture
     for (let y = 0; y < ROOM_HEIGHT; y++) {
         for (let x = 0; x < ROOM_WIDTH; x++) {
             const pos = ISO.toScreen(x, y);
 
-            // Draw tile
-            graphics.lineStyle(1, 0x999999, 0.5);
-            graphics.fillStyle(0xDEB887, 1); // Tan floor color
+            // Create floor tile sprite
+            const floorTile = scene.add.sprite(pos.x, pos.y, 'walls', floorTextureFrame);
+            floorTile.setOrigin(0.5, 0.5);
+            floorTile.setScale(0.5); // Scale to fit isometric tiles
+            floorTile.setDepth(0); // Floor is at depth 0
+            floorTile.setAlpha(0.8); // Slightly transparent for texture blend
 
-            // Diamond shape for isometric tile
-            graphics.beginPath();
-            graphics.moveTo(pos.x, pos.y);
-            graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y + ISO.TILE_HEIGHT / 2);
-            graphics.lineTo(pos.x, pos.y + ISO.TILE_HEIGHT);
-            graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y + ISO.TILE_HEIGHT / 2);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.strokePath();
+            roomTiles.push(floorTile);
         }
     }
 
-    // Set floor depth (below furniture and cats)
-    graphics.setDepth(0);
-
     // Draw walls around the perimeter
-    drawWalls(scene);
+    drawWalls(scene, wallTextureFrame);
 
     // Add title text
     const title = scene.add.text(0, -120, 'Cozy Cat Playroom', {
@@ -593,21 +640,22 @@ function createRoom(scene) {
     title.setOrigin(0.5);
 }
 
-function drawWalls(scene) {
-    const WALL_HEIGHT = 120; // Increased from 40
+function drawWalls(scene, wallTextureFrame) {
+    const WALL_HEIGHT = 120;
+    const FLOOR_EXTENSION = 16; // Extra pixels to reach down to floor level
     const graphics = scene.add.graphics();
 
     // Back wall (top) - draw as continuous smooth wall
     const backWallStartPos = ISO.toScreen(0, 0);
     const backWallEndPos = ISO.toScreen(ROOM_WIDTH - 1, 0);
 
-    // Back wall main panel
-    graphics.fillStyle(0x8B7355, 1);
+    // Back wall main panel - extended to floor
+    graphics.fillStyle(0x8B7355, 1); // Opaque
     graphics.beginPath();
     graphics.moveTo(backWallStartPos.x - ISO.TILE_WIDTH / 2, backWallStartPos.y - WALL_HEIGHT);
     graphics.lineTo(backWallEndPos.x + ISO.TILE_WIDTH / 2, backWallEndPos.y - WALL_HEIGHT);
-    graphics.lineTo(backWallEndPos.x + ISO.TILE_WIDTH / 2, backWallEndPos.y);
-    graphics.lineTo(backWallStartPos.x - ISO.TILE_WIDTH / 2, backWallStartPos.y);
+    graphics.lineTo(backWallEndPos.x + ISO.TILE_WIDTH / 2, backWallEndPos.y + FLOOR_EXTENSION);
+    graphics.lineTo(backWallStartPos.x - ISO.TILE_WIDTH / 2, backWallStartPos.y + FLOOR_EXTENSION);
     graphics.closePath();
     graphics.fillPath();
 
@@ -626,8 +674,8 @@ function drawWalls(scene) {
         const pos = ISO.toScreen(0, y);
         const nextPos = ISO.toScreen(0, y + 1);
 
-        // Main panel
-        graphics.fillStyle(0xA0826D, 1);
+        // Main panel (angled face)
+        graphics.fillStyle(0xA0826D, 1); // Opaque
         graphics.beginPath();
         graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
         graphics.lineTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
@@ -636,62 +684,28 @@ function drawWalls(scene) {
         graphics.closePath();
         graphics.fillPath();
 
-        // Left face (darker)
-        graphics.fillStyle(0x8B8679, 1);
+        // Left face (darker vertical face) - extended to floor
+        graphics.fillStyle(0x8B8679, 1); // Opaque
         graphics.beginPath();
         graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
-        graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y);
-        graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y);
+        graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y + FLOOR_EXTENSION);
+        graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y + FLOOR_EXTENSION);
         graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
         graphics.closePath();
         graphics.fillPath();
 
-        // Top edge
-        graphics.fillStyle(0xBFA98A, 1);
+        // Top edge - extended to floor
+        graphics.fillStyle(0xBFA98A, 1); // Opaque
         graphics.beginPath();
         graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
         graphics.lineTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-        graphics.lineTo(pos.x, pos.y + ISO.TILE_HEIGHT / 2);
-        graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y);
+        graphics.lineTo(pos.x, pos.y + ISO.TILE_HEIGHT / 2 + FLOOR_EXTENSION);
+        graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y + FLOOR_EXTENSION);
         graphics.closePath();
         graphics.fillPath();
     }
 
-    // Right wall - draw as continuous isometric panels
-    for (let y = 0; y < ROOM_HEIGHT; y++) {
-        const pos = ISO.toScreen(ROOM_WIDTH - 1, y);
-        const nextPos = ISO.toScreen(ROOM_WIDTH - 1, y + 1);
-
-        // Main panel
-        graphics.fillStyle(0x6D5D4B, 1);
-        graphics.beginPath();
-        graphics.moveTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-        graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
-        graphics.lineTo(nextPos.x + ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
-        graphics.lineTo(nextPos.x, nextPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Right face (darker)
-        graphics.fillStyle(0x5C4E3D, 1);
-        graphics.beginPath();
-        graphics.moveTo(pos.x + ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
-        graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y);
-        graphics.lineTo(nextPos.x + ISO.TILE_WIDTH / 2, nextPos.y);
-        graphics.lineTo(nextPos.x + ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Top edge (lighter)
-        graphics.fillStyle(0x8B7967, 1);
-        graphics.beginPath();
-        graphics.moveTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
-        graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
-        graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y);
-        graphics.lineTo(pos.x, pos.y + ISO.TILE_HEIGHT / 2);
-        graphics.closePath();
-        graphics.fillPath();
-    }
+    // Right wall removed - only back and left walls remain
 
     // Add subtle line details to walls for texture
     graphics.lineStyle(1, 0x000000, 0.1);

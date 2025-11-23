@@ -91,12 +91,14 @@
         foodImg.onload = function() {
             drawFoodGrid();
         };
-        foodImg.src = 'assets/CatInteraction/food.png';
+        //foodImg.src = 'assets/CatInteraction/food.png';
+        foodImg.src = 'assets/Room/walls.png';
 
         bedImg.onload = function() {
             drawBedGrid();
         };
-        bedImg.src = 'assets/CatInteraction/beds.png';
+        //bedImg.src = 'assets/CatInteraction/beds.png';
+        bedImg.src = 'assets/Room/carpets.png';
 
         function drawFoodGrid() {
             const canvas = document.getElementById('foodCanvas');
