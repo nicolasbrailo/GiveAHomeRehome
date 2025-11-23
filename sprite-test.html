@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sprite Sheet Tester</title>
+    <style>
+        body {
+            background: #2c3e50;
+            color: white;
+            font-family: monospace;
+            padding: 20px;
+        }
+        .container {
+            margin: 20px 0;
+            background: #34495e;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        canvas {
+            background: #ecf0f1;
+            border: 2px solid #95a5a6;
+            margin: 10px 0;
+        }
+        .controls {
+            margin: 10px 0;
+        }
+        input {
+            width: 60px;
+            padding: 5px;
+        }
+        button {
+            padding: 5px 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .info {
+            color: #95a5a6;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sprite Sheet Frame Size Tester</h1>
+    <p>Use this tool to find the correct frame dimensions for your sprite sheets.</p>
+
+    <!-- Food Sprite Test -->
+    <div class="container">
+        <h2>Food Sprites (255x188)</h2>
+        <div class="controls">
+            Frame Width: <input type="number" id="foodWidth" value="32" min="1" max="255">
+            Frame Height: <input type="number" id="foodHeight" value="32" min="1" max="188">
+            <button onclick="drawFoodGrid()">Update Grid</button>
+        </div>
+        <div class="info">
+            Columns: <span id="foodCols">-</span>, Rows: <span id="foodRows">-</span>
+        </div>
+        <canvas id="foodCanvas"></canvas>
+    </div>
+
+    <!-- Bed Sprite Test -->
+    <div class="container">
+        <h2>Bed Sprites (237x181)</h2>
+        <div class="controls">
+            Frame Width: <input type="number" id="bedWidth" value="32" min="1" max="237">
+            Frame Height: <input type="number" id="bedHeight" value="32" min="1" max="181">
+            <button onclick="drawBedGrid()">Update Grid</button>
+        </div>
+        <div class="info">
+            Columns: <span id="bedCols">-</span>, Rows: <span id="bedRows">-</span>
+        </div>
+        <canvas id="bedCanvas"></canvas>
+    </div>
+
+    <div class="container">
+        <h3>Common Frame Sizes to Try:</h3>
+        <ul>
+            <li><strong>Food:</strong> Try 51x37 (5×5), 36x37 (7×5), or 42x37 (6×5)</li>
+            <li><strong>Beds:</strong> Try 33x36 (7×5), or 47x36 (5×5)</li>
+        </ul>
+    </div>
+
+    <script>
+        let foodImg = new Image();
+        let bedImg = new Image();
+
+        foodImg.onload = function() {
+            drawFoodGrid();
+        };
+        foodImg.src = 'assets/CatInteraction/food.png';
+
+        bedImg.onload = function() {
+            drawBedGrid();
+        };
+        bedImg.src = 'assets/CatInteraction/beds.png';
+
+        function drawFoodGrid() {
+            const canvas = document.getElementById('foodCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = parseInt(document.getElementById('foodWidth').value);
+            const height = parseInt(document.getElementById('foodHeight').value);
+
+            canvas.width = foodImg.width;
+            canvas.height = foodImg.height;
+
+            // Draw the image
+            ctx.drawImage(foodImg, 0, 0);
+
+            // Draw grid
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 1;
+
+            // Vertical lines
+            for (let x = 0; x <= foodImg.width; x += width) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, foodImg.height);
+                ctx.stroke();
+            }
+
+            // Horizontal lines
+            for (let y = 0; y <= foodImg.height; y += height) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(foodImg.width, y);
+                ctx.stroke();
+            }
+
+            // Calculate cols/rows
+            const cols = Math.floor(foodImg.width / width);
+            const rows = Math.floor(foodImg.height / height);
+            document.getElementById('foodCols').textContent = cols;
+            document.getElementById('foodRows').textContent = rows;
+        }
+
+        function drawBedGrid() {
+            const canvas = document.getElementById('bedCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = parseInt(document.getElementById('bedWidth').value);
+            const height = parseInt(document.getElementById('bedHeight').value);
+
+            canvas.width = bedImg.width;
+            canvas.height = bedImg.height;
+
+            // Draw the image
+            ctx.drawImage(bedImg, 0, 0);
+
+            // Draw grid
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 1;
+
+            // Vertical lines
+            for (let x = 0; x <= bedImg.width; x += width) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, bedImg.height);
+                ctx.stroke();
+            }
+
+            // Horizontal lines
+            for (let y = 0; y <= bedImg.height; y += height) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(bedImg.width, y);
+                ctx.stroke();
+            }
+
+            // Calculate cols/rows
+            const cols = Math.floor(bedImg.width / width);
+            const rows = Math.floor(bedImg.height / height);
+            document.getElementById('bedCols').textContent = cols;
+            document.getElementById('bedRows').textContent = rows;
+        }
+    </script>
+</body>
+</html>

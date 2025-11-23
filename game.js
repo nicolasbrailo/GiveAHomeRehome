@@ -38,7 +38,7 @@ class Food {
         const pos = ISO.toScreen(gridX, gridY);
         this.sprite = scene.add.sprite(pos.x, pos.y, 'food', frameIndex);
         this.sprite.setOrigin(0.5, 0.8);
-        this.sprite.setScale(1.2);
+        this.sprite.setScale(0.6); // Adjusted for 64x64 sprites
         this.sprite.setDepth(50 + gridX + gridY);
     }
 
@@ -62,6 +62,35 @@ class Food {
 }
 
 // ===========================
+// BED CLASS
+// ===========================
+
+class Bed {
+    constructor(scene, gridX, gridY, frameIndex) {
+        this.scene = scene;
+        this.gridX = gridX;
+        this.gridY = gridY;
+        this.occupied = false; // Is a cat sleeping in this bed
+
+        // Create bed sprite
+        const pos = ISO.toScreen(gridX, gridY);
+        this.sprite = scene.add.sprite(pos.x, pos.y, 'beds', frameIndex);
+        this.sprite.setOrigin(0.5, 0.8);
+        this.sprite.setScale(0.5); // Adjusted for 120x92 sprites
+        this.sprite.setDepth(50 + gridX + gridY);
+    }
+
+    checkNearby(cat) {
+        const distance = Math.sqrt(
+            Math.pow(cat.gridX - this.gridX, 2) +
+            Math.pow(cat.gridY - this.gridY, 2)
+        );
+
+        return distance < 1.0; // Slightly larger range than food
+    }
+}
+
+// ===========================
 // CAT CLASS
 // ===========================
 
@@ -80,6 +109,14 @@ class Cat {
         this.isEating = false;
         this.eatingTimer = 0;
         this.targetFood = null; // The food this cat is heading towards
+        this.isSleeping = false;
+        this.sleepTimer = 0;
+        this.currentBed = null;
+        this.isPlaying = false;
+        this.playTimer = 0;
+        this.playPartner = null; // Another cat to play with
+        this.sleepIndicator = null; // Text showing "Zzzz"
+        this.playIndicator = null; // Text showing "!"
 
         // Create cat sprite with animation
         const pos = ISO.toScreen(gridX, gridY);
@@ -92,6 +129,46 @@ class Cat {
         this.sprite.play(`${catType}_idle_anim`);
     }
 
+    showSleepIndicator() {
+        if (!this.sleepIndicator) {
+            this.sleepIndicator = this.scene.add.text(this.sprite.x, this.sprite.y - 40, 'Zzzz', {
+                fontSize: '16px',
+                color: '#ffffff',
+                stroke: '#000000',
+                strokeThickness: 2
+            });
+            this.sleepIndicator.setOrigin(0.5);
+            this.sleepIndicator.setDepth(200);
+        }
+    }
+
+    hideSleepIndicator() {
+        if (this.sleepIndicator) {
+            this.sleepIndicator.destroy();
+            this.sleepIndicator = null;
+        }
+    }
+
+    showPlayIndicator() {
+        if (!this.playIndicator) {
+            this.playIndicator = this.scene.add.text(this.sprite.x, this.sprite.y - 40, '!', {
+                fontSize: '20px',
+                color: '#ffff00',
+                stroke: '#ff0000',
+                strokeThickness: 3
+            });
+            this.playIndicator.setOrigin(0.5);
+            this.playIndicator.setDepth(200);
+        }
+    }
+
+    hidePlayIndicator() {
+        if (this.playIndicator) {
+            this.playIndicator.destroy();
+            this.playIndicator = null;
+        }
+    }
+
     pickNewTarget(roomWidth, roomHeight) {
         // Pick a random spot in the room (leaving 1 tile border for walls)
         this.targetX = 1 + Math.floor(Math.random() * (roomWidth - 2));
@@ -99,7 +176,62 @@ class Cat {
         this.waitTimer = 0;
     }
 
-    update(roomWidth, roomHeight, foodItems) {
+    wakeUp() {
+        if (this.isSleeping) {
+            this.isSleeping = false;
+            this.sleepTimer = 0;
+            this.hideSleepIndicator();
+            if (this.currentBed) {
+                this.currentBed.occupied = false;
+                this.currentBed = null;
+            }
+        }
+    }
+
+    update(roomWidth, roomHeight, foodItems, beds, otherCats) {
+        // Clean up indicators if state has changed
+        if (this.sleepIndicator && !this.isSleeping) {
+            this.hideSleepIndicator();
+        }
+        if (this.playIndicator && !this.isPlaying) {
+            this.hidePlayIndicator();
+        }
+
+        // Update indicator positions to follow cat
+        if (this.sleepIndicator && this.isSleeping) {
+            this.sleepIndicator.x = this.sprite.x;
+            this.sleepIndicator.y = this.sprite.y - 40;
+        }
+        if (this.playIndicator && this.isPlaying) {
+            this.playIndicator.x = this.sprite.x;
+            this.playIndicator.y = this.sprite.y - 40;
+        }
+
+        // Handle playing timer
+        if (this.playTimer > 0) {
+            this.playTimer--;
+            if (this.playTimer === 0) {
+                this.isPlaying = false;
+                this.playPartner = null;
+                this.hidePlayIndicator();
+            }
+            return;
+        }
+
+        // Handle sleeping timer
+        if (this.sleepTimer > 0) {
+            this.sleepTimer--;
+            if (this.sleepTimer === 0) {
+                this.isSleeping = false;
+                this.hideSleepIndicator();
+                if (this.currentBed) {
+                    this.currentBed.occupied = false;
+                    this.currentBed = null;
+                }
+            }
+            return;
+        }
+
         // Handle eating timer
         if (this.eatingTimer > 0) {
             this.eatingTimer--;
@@ -126,11 +258,12 @@ class Cat {
             }
         }
 
-        // Check for fresh food to target
+        // Check for fresh food to target (wakes up sleeping cats)
         if (!this.targetFood && foodItems) {
             for (let food of foodItems) {
                 if (food.isFresh && !food.claimed && !food.eaten) {
-                    // Found fresh unclaimed food, claim it and run to it
+                    // Found fresh unclaimed food, wake up and run to it
+                    this.wakeUp();
                     this.targetFood = food;
                     food.claimed = true;
                     this.targetX = food.gridX;
@@ -144,6 +277,53 @@ class Cat {
         // If targeting food, check if it's still valid
         if (this.targetFood && this.targetFood.eaten) {
             this.targetFood = null;
+        }
+
+        // Check for collision with other cats
+        if (!this.isPlaying && !this.isSleeping && otherCats) {
+            for (let otherCat of otherCats) {
+                if (otherCat === this || otherCat.isPlaying || otherCat.isSleeping) continue;
+
+                const dx = otherCat.gridX - this.gridX;
+                const dy = otherCat.gridY - this.gridY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < 0.3) {
+                    // Collision! Start playing
+                    this.isPlaying = true;
+                    this.playTimer = 120; // Play for 2 seconds
+                    this.playPartner = otherCat;
+                    this.isMoving = false;
+                    this.sprite.play(`${this.catType}_walk_anim`); // Use walk animation for jumping
+                    this.showPlayIndicator();
+
+                    // Make the other cat play too
+                    otherCat.isPlaying = true;
+                    otherCat.playTimer = 120;
+                    otherCat.playPartner = this;
+                    otherCat.isMoving = false;
+                    otherCat.sprite.play(`${otherCat.catType}_walk_anim`);
+                    otherCat.showPlayIndicator();
+                    return;
+                }
+            }
+        }
+
+        // Check for nearby beds (only if not targeting food)
+        if (!this.isSleeping && !this.targetFood && beds) {
+            for (let bed of beds) {
+                if (!bed.occupied && bed.checkNearby(this)) {
+                    // Found an empty bed, go to sleep
+                    this.isSleeping = true;
+                    this.sleepTimer = 180 + Math.random() * 180; // Sleep for 3-6 seconds
+                    this.currentBed = bed;
+                    bed.occupied = true;
+                    this.isMoving = false;
+                    this.sprite.play(`${this.catType}_idle_anim`);
+                    this.showSleepIndicator();
+                    return;
+                }
+            }
         }
 
         // Wait at current position for a bit
@@ -234,6 +414,7 @@ const game = new Phaser.Game(config);
 
 let cats = [];
 let foodItems = [];
+let beds = [];
 let roomTiles = [];
 let gameScene = null;
 let foodMenu = [];
@@ -242,7 +423,8 @@ let draggedFoodSprite = null;
 let cursors = null;
 const ROOM_WIDTH = 16;
 const ROOM_HEIGHT = 12;
-const FOOD_TYPES = 40; // 8x5 grid in sprite sheet
+const FOOD_TYPES = 6; // 255÷64 = 3 cols × 188÷64 = 2 rows = ~6 frames
+const BED_TYPES = 2; // 237÷120 = 1 col × 181÷92 = 1 row = ~2 frames
 const CAMERA_SPEED = 5;
 
 // List of available cat sprite types with their file names
@@ -291,11 +473,17 @@ function preload() {
 
     // Load food sprites
     this.load.spritesheet('food', 'assets/CatInteraction/food.png', {
-        frameWidth: 32,
-        frameHeight: 32
+        frameWidth: 64,
+        frameHeight: 64
     });
 
-    console.log(`Loaded ${availableCatTypes.length} cat types and food sprites`);
+    // Load bed sprites
+    this.load.spritesheet('beds', 'assets/CatInteraction/beds.png', {
+        frameWidth: 120,
+        frameHeight: 92
+    });
+
+    console.log(`Loaded ${availableCatTypes.length} cat types, food sprites, and bed sprites`);
 }
 
 function create() {
@@ -345,6 +533,15 @@ function create() {
 
     // Give cats initial targets
     cats.forEach(cat => cat.pickNewTarget(ROOM_WIDTH, ROOM_HEIGHT));
+
+    // Spawn beds randomly
+    const numBeds = 4;
+    for (let i = 0; i < numBeds; i++) {
+        const frameIndex = Math.floor(Math.random() * BED_TYPES);
+        const randomX = 2 + Math.floor(Math.random() * (ROOM_WIDTH - 4));
+        const randomY = 2 + Math.floor(Math.random() * (ROOM_HEIGHT - 4));
+        beds.push(new Bed(this, randomX, randomY, frameIndex));
+    }
 
     // Create food menu UI
     createFoodMenu(this);
@@ -397,27 +594,115 @@ function createRoom(scene) {
 }
 
 function drawWalls(scene) {
+    const WALL_HEIGHT = 120; // Increased from 40
     const graphics = scene.add.graphics();
 
-    // Back wall (top)
-    for (let x = 0; x < ROOM_WIDTH; x++) {
-        const pos = ISO.toScreen(x, 0);
-        graphics.fillStyle(0x8B7355, 1); // Brown wall
-        graphics.fillRect(pos.x - ISO.TILE_WIDTH / 2, pos.y - 40, ISO.TILE_WIDTH / 2, 40);
-    }
+    // Back wall (top) - draw as continuous smooth wall
+    const backWallStartPos = ISO.toScreen(0, 0);
+    const backWallEndPos = ISO.toScreen(ROOM_WIDTH - 1, 0);
 
-    // Left wall
+    // Back wall main panel
+    graphics.fillStyle(0x8B7355, 1);
+    graphics.beginPath();
+    graphics.moveTo(backWallStartPos.x - ISO.TILE_WIDTH / 2, backWallStartPos.y - WALL_HEIGHT);
+    graphics.lineTo(backWallEndPos.x + ISO.TILE_WIDTH / 2, backWallEndPos.y - WALL_HEIGHT);
+    graphics.lineTo(backWallEndPos.x + ISO.TILE_WIDTH / 2, backWallEndPos.y);
+    graphics.lineTo(backWallStartPos.x - ISO.TILE_WIDTH / 2, backWallStartPos.y);
+    graphics.closePath();
+    graphics.fillPath();
+
+    // Back wall gradient overlay for depth
+    graphics.fillStyle(0x6D5D4B, 0.3);
+    graphics.beginPath();
+    graphics.moveTo(backWallStartPos.x - ISO.TILE_WIDTH / 2, backWallStartPos.y - WALL_HEIGHT);
+    graphics.lineTo(backWallEndPos.x + ISO.TILE_WIDTH / 2, backWallEndPos.y - WALL_HEIGHT);
+    graphics.lineTo(backWallEndPos.x + ISO.TILE_WIDTH / 2, backWallEndPos.y - WALL_HEIGHT / 2);
+    graphics.lineTo(backWallStartPos.x - ISO.TILE_WIDTH / 2, backWallStartPos.y - WALL_HEIGHT / 2);
+    graphics.closePath();
+    graphics.fillPath();
+
+    // Left wall - draw as continuous isometric panels
     for (let y = 0; y < ROOM_HEIGHT; y++) {
         const pos = ISO.toScreen(0, y);
-        graphics.fillStyle(0xA0826D, 1); // Lighter brown
-        graphics.fillRect(pos.x - ISO.TILE_WIDTH / 2, pos.y, ISO.TILE_WIDTH / 2, ISO.TILE_HEIGHT / 2);
+        const nextPos = ISO.toScreen(0, y + 1);
+
+        // Main panel
+        graphics.fillStyle(0xA0826D, 1);
+        graphics.beginPath();
+        graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
+        graphics.lineTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+        graphics.lineTo(nextPos.x, nextPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+        graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Left face (darker)
+        graphics.fillStyle(0x8B8679, 1);
+        graphics.beginPath();
+        graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
+        graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y);
+        graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y);
+        graphics.lineTo(nextPos.x - ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Top edge
+        graphics.fillStyle(0xBFA98A, 1);
+        graphics.beginPath();
+        graphics.moveTo(pos.x - ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
+        graphics.lineTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+        graphics.lineTo(pos.x, pos.y + ISO.TILE_HEIGHT / 2);
+        graphics.lineTo(pos.x - ISO.TILE_WIDTH / 2, pos.y);
+        graphics.closePath();
+        graphics.fillPath();
     }
 
-    // Right wall
+    // Right wall - draw as continuous isometric panels
     for (let y = 0; y < ROOM_HEIGHT; y++) {
         const pos = ISO.toScreen(ROOM_WIDTH - 1, y);
-        graphics.fillStyle(0x6D5D4B, 1); // Darker brown
-        graphics.fillRect(pos.x, pos.y, ISO.TILE_WIDTH / 2, ISO.TILE_HEIGHT / 2);
+        const nextPos = ISO.toScreen(ROOM_WIDTH - 1, y + 1);
+
+        // Main panel
+        graphics.fillStyle(0x6D5D4B, 1);
+        graphics.beginPath();
+        graphics.moveTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+        graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
+        graphics.lineTo(nextPos.x + ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
+        graphics.lineTo(nextPos.x, nextPos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Right face (darker)
+        graphics.fillStyle(0x5C4E3D, 1);
+        graphics.beginPath();
+        graphics.moveTo(pos.x + ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
+        graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y);
+        graphics.lineTo(nextPos.x + ISO.TILE_WIDTH / 2, nextPos.y);
+        graphics.lineTo(nextPos.x + ISO.TILE_WIDTH / 2, nextPos.y - WALL_HEIGHT);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Top edge (lighter)
+        graphics.fillStyle(0x8B7967, 1);
+        graphics.beginPath();
+        graphics.moveTo(pos.x, pos.y - WALL_HEIGHT + ISO.TILE_HEIGHT / 2);
+        graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y - WALL_HEIGHT);
+        graphics.lineTo(pos.x + ISO.TILE_WIDTH / 2, pos.y);
+        graphics.lineTo(pos.x, pos.y + ISO.TILE_HEIGHT / 2);
+        graphics.closePath();
+        graphics.fillPath();
+    }
+
+    // Add subtle line details to walls for texture
+    graphics.lineStyle(1, 0x000000, 0.1);
+
+    // Horizontal lines on back wall
+    for (let i = 1; i < 5; i++) {
+        const y = backWallStartPos.y - (WALL_HEIGHT * i / 5);
+        graphics.beginPath();
+        graphics.moveTo(backWallStartPos.x - ISO.TILE_WIDTH / 2, y);
+        graphics.lineTo(backWallEndPos.x + ISO.TILE_WIDTH / 2, y);
+        graphics.strokePath();
     }
 
     // Set wall depth (below furniture and cats)
@@ -525,8 +810,8 @@ function createBowls(scene, gridX, gridY) {
 
 function createFoodMenu(scene) {
     const menuY = 30;
-    const startX = 100;
-    const spacing = 60;
+    const startX = 200;
+    const spacing = 80;
 
     // Create background for menu
     const menuBg = scene.add.graphics();
@@ -535,11 +820,12 @@ function createFoodMenu(scene) {
     menuBg.setDepth(1000);
     menuBg.setScrollFactor(0); // Fixed to camera
 
-    // Create food menu items (show 10 different food types)
-    for (let i = 0; i < 10; i++) {
-        const frameIndex = i * 4; // Sample different foods from sprite sheet
+    // Create food menu items - show all available food types
+    const numFoodItems = Math.min(FOOD_TYPES, 6); // Show up to 6 food types
+    for (let i = 0; i < numFoodItems; i++) {
+        const frameIndex = i; // Use sequential frames now that they're larger
         const foodIcon = scene.add.sprite(startX + i * spacing, menuY, 'food', frameIndex);
-        foodIcon.setScale(1.5);
+        foodIcon.setScale(0.8); // Smaller scale since sprites are now 64x64
         foodIcon.setInteractive({ draggable: true });
         foodIcon.setDepth(1001);
         foodIcon.setScrollFactor(0); // Fixed to camera
@@ -547,10 +833,10 @@ function createFoodMenu(scene) {
 
         // Add hover effect
         foodIcon.on('pointerover', function() {
-            this.setScale(1.7);
+            this.setScale(0.9);
         });
         foodIcon.on('pointerout', function() {
-            this.setScale(1.5);
+            this.setScale(0.8);
         });
 
         foodMenu.push(foodIcon);
@@ -571,7 +857,7 @@ function setupDragAndDrop(scene) {
         // Create a dragged sprite that follows the screen cursor
         const frameIndex = gameObject.getData('foodFrame');
         draggedFoodSprite = scene.add.sprite(0, 0, 'food', frameIndex);
-        draggedFoodSprite.setScale(1.2);
+        draggedFoodSprite.setScale(0.6); // Match the food sprite scale
         draggedFoodSprite.setDepth(2000);
         draggedFoodSprite.setAlpha(0.8);
         draggedFoodSprite.setScrollFactor(0); // Fixed to screen, not world
@@ -642,6 +928,6 @@ function update() {
 
     // Update all cats
     cats.forEach(cat => {
-        cat.update(ROOM_WIDTH, ROOM_HEIGHT, foodItems);
+        cat.update(ROOM_WIDTH, ROOM_HEIGHT, foodItems, beds, cats);
     });
 }
