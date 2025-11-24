@@ -184,7 +184,8 @@ function create() {
     }
 
     // Create furniture (pass occupied positions to avoid overlaps)
-    createFurnitureWithSpacing(this, occupiedPositions);
+    // Disabled placeholder furniture - users will place their own items
+    // createFurnitureWithSpacing(this, occupiedPositions);
 
     // Create cats with random sprites
     const catTypeKeys = Object.keys(CAT_TYPES);
@@ -211,6 +212,9 @@ function create() {
 
     // Setup touch/mouse controls for camera panning
     setupCameraControls(this);
+
+    // Setup cat interaction (hover and click for stats)
+    setupCatInteraction(this);
 }
 
 function setupCameraControls(scene) {
@@ -256,6 +260,57 @@ function setupCameraControls(scene) {
         isCameraDragging = false;
         cameraDragStart = null;
         lastCameraPosition = null;
+    });
+}
+
+function setupCatInteraction(scene) {
+    let clickedCat = null;
+
+    // Hover to show stats temporarily
+    scene.input.on('gameobjectover', function(pointer, gameObject) {
+        const catInstance = gameObject.getData('catInstance');
+        if (catInstance && catInstance !== clickedCat) {
+            catInstance.showStats();
+        }
+    });
+
+    // Hover out to hide stats (unless clicked)
+    scene.input.on('gameobjectout', function(pointer, gameObject) {
+        const catInstance = gameObject.getData('catInstance');
+        if (catInstance && catInstance !== clickedCat) {
+            catInstance.hideStats();
+        }
+    });
+
+    // Click/tap to toggle stats (persistent)
+    scene.input.on('gameobjectdown', function(pointer, gameObject) {
+        const catInstance = gameObject.getData('catInstance');
+        if (catInstance) {
+            // If there was a previously clicked cat, hide its stats
+            if (clickedCat && clickedCat !== catInstance) {
+                clickedCat.hideStats();
+            }
+
+            // Toggle stats for this cat
+            if (clickedCat === catInstance) {
+                catInstance.hideStats();
+                clickedCat = null;
+            } else {
+                catInstance.showStats();
+                clickedCat = catInstance;
+            }
+        }
+    });
+
+    // Hide stats when clicking on empty space
+    scene.input.on('pointerdown', function(pointer) {
+        const objectsUnderPointer = scene.input.hitTestPointer(pointer);
+        const clickedOnCat = objectsUnderPointer.some(obj => obj.getData('catInstance'));
+
+        if (!clickedOnCat && clickedCat) {
+            clickedCat.hideStats();
+            clickedCat = null;
+        }
     });
 }
 
