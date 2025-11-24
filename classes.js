@@ -131,11 +131,14 @@ class Cat {
         this.playCooldown = 0; // Cooldown period after playing
         this.sleepIndicator = null; // Text showing "Zzzz"
         this.playIndicator = null; // Text showing "!"
+        this.sickIndicator = null; // Text showing sick status
 
         // Stats
         this.name = this.generateRandomName();
         this.hunger = 0; // 0 = full, 100 = starving
         this.tiredness = 0; // 0 = energetic, 100 = exhausted
+        this.isSick = false;
+        this.sickTimer = 0;
         this.statsUI = null; // UI container for stats display
         this.showingStats = false;
 
@@ -203,6 +206,49 @@ class Cat {
             this.playIndicator.destroy();
             this.playIndicator = null;
         }
+    }
+
+    showSickIndicator() {
+        if (!this.sickIndicator) {
+            this.sickIndicator = this.scene.add.text(this.sprite.x, this.sprite.y - 40, '🤢', {
+                fontSize: '24px'
+            });
+            this.sickIndicator.setOrigin(0.5);
+            this.sickIndicator.setDepth(200);
+        }
+    }
+
+    hideSickIndicator() {
+        if (this.sickIndicator) {
+            this.sickIndicator.destroy();
+            this.sickIndicator = null;
+        }
+    }
+
+    throwUp() {
+        // Create a throw-up visual effect
+        const vomitGraphics = this.scene.add.graphics();
+        vomitGraphics.fillStyle(0x8B7355, 1);
+
+        // Draw several splatters
+        for (let i = 0; i < 5; i++) {
+            const offsetX = (Math.random() - 0.5) * 20;
+            const offsetY = (Math.random() - 0.5) * 20;
+            const size = 3 + Math.random() * 5;
+            vomitGraphics.fillCircle(this.sprite.x + offsetX, this.sprite.y + offsetY, size);
+        }
+
+        vomitGraphics.setDepth(1);
+
+        // Fade out and destroy after 5 seconds
+        this.scene.tweens.add({
+            targets: vomitGraphics,
+            alpha: 0,
+            duration: 5000,
+            onComplete: () => {
+                vomitGraphics.destroy();
+            }
+        });
     }
 
     showStats() {
@@ -336,9 +382,24 @@ class Cat {
             this.updateStatsDisplay();
         }
 
-        // Increase hunger slowly over time (reaches 100 in ~5 minutes)
-        if (this.hunger < 100) {
+        // Increase hunger slowly over time (reaches 100 in ~5 minutes), unless sick
+        if (this.hunger < 100 && !this.isSick) {
             this.hunger += 0.005;
+        }
+
+        // Handle sickness timer
+        if (this.sickTimer > 0) {
+            this.sickTimer--;
+            if (this.sickTimer === 0) {
+                this.isSick = false;
+                this.hideSickIndicator();
+            }
+            // Update sick indicator position
+            if (this.sickIndicator) {
+                this.sickIndicator.x = this.sprite.x;
+                this.sickIndicator.y = this.sprite.y - 40;
+            }
+            return; // Can't do anything else while sick
         }
 
         // Clean up indicators if state has changed (do this first, before any other logic)
@@ -347,6 +408,9 @@ class Cat {
         }
         if (this.playIndicator && !this.isPlaying) {
             this.hidePlayIndicator();
+        }
+        if (this.sickIndicator && !this.isSick) {
+            this.hideSickIndicator();
         }
 
         // Hide sleep indicator if cat is moving, eating, or playing
@@ -426,7 +490,23 @@ class Cat {
         if (!this.isEating && foodItems) {
             for (let food of foodItems) {
                 if (food.checkCollision(this)) {
-                    // Found food nearby, start eating
+                    // Check if cat is already full (hunger < 20)
+                    if (this.hunger < 20) {
+                        // Cat is too full, gets sick!
+                        this.isSick = true;
+                        this.sickTimer = 180; // Sick for 3 seconds
+                        this.isMoving = false;
+                        this.sprite.play(`${this.catType}_idle_anim`);
+                        this.showSickIndicator();
+                        this.throwUp();
+                        food.eat(); // Still consume the food
+                        this.targetFood = null;
+                        // Increase hunger a bit due to sickness
+                        this.hunger = Math.min(30, this.hunger + 15);
+                        return;
+                    }
+
+                    // Found food nearby and hungry enough, start eating
                     this.isEating = true;
                     this.eatingTimer = 90; // Eat for 1.5 seconds
                     this.isMoving = false;
