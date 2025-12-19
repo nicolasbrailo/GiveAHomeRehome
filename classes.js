@@ -104,6 +104,64 @@ class Carpet {
 }
 
 // ===========================
+// LITTERBOX CLASS
+// ===========================
+
+class LitterBox {
+    constructor(scene, gridX, gridY) {
+        this.scene = scene;
+        this.gridX = gridX;
+        this.gridY = gridY;
+        this.occupied = false; // Is a cat using this litter box
+        this.waste = []; // Array of waste sprites (poop/pee emojis)
+
+        // Create litter box visual - simple and VERY visible
+        const pos = ISO.toScreen(gridX, gridY);
+        console.log(`Creating litter box at grid (${gridX}, ${gridY}), screen (${pos.x}, ${pos.y})`);
+
+        // Create a big visible text label
+        const label = scene.add.text(pos.x, pos.y, '🚽\nLITTER\nBOX', {
+            fontSize: '24px',
+            color: '#8B4513',
+            backgroundColor: '#DEB887',
+            padding: { x: 10, y: 10 },
+            align: 'center',
+            fontStyle: 'bold'
+        });
+        label.setOrigin(0.5, 0.8);
+        label.setDepth(50 + gridX + gridY);
+
+        this.sprite = label;
+        console.log(`Litter box created with depth: ${50 + gridX + gridY}`);
+    }
+
+    checkNearby(cat) {
+        const distance = Math.sqrt(
+            Math.pow(cat.gridX - this.gridX, 2) +
+            Math.pow(cat.gridY - this.gridY, 2)
+        );
+
+        return distance < 1.0; // Same range as bed
+    }
+
+    addWaste(scene, type) {
+        // Add a poop emoji at a random position within the litter box
+        const pos = ISO.toScreen(this.gridX, this.gridY);
+        const offsetX = (Math.random() - 0.5) * 40;
+        const offsetY = (Math.random() - 0.5) * 20;
+
+        const emoji = type === 'poop' ? '💩' : '💧';
+        const wasteText = scene.add.text(pos.x + offsetX, pos.y + offsetY, emoji, {
+            fontSize: '20px'
+        });
+        wasteText.setOrigin(0.5);
+        wasteText.setDepth(51 + this.gridX + this.gridY); // Just above the litter box
+
+        this.waste.push(wasteText);
+    }
+}
+
+// ===========================
 // CAT CLASS
 // ===========================
 
@@ -132,6 +190,13 @@ class Cat {
         this.sleepIndicator = null; // Text showing "Zzzz"
         this.playIndicator = null; // Text showing "!"
         this.sickIndicator = null; // Text showing sick status
+
+        // Litter box system
+        this.foodEatenCount = 0; // Tracks number of food items eaten
+        this.needsLitterBox = false; // True when cat has eaten 5 food items
+        this.isUsingLitterBox = false;
+        this.litterBoxTimer = 0;
+        this.currentLitterBox = null;
 
         // Stats
         this.name = this.generateRandomName();
@@ -226,7 +291,7 @@ class Cat {
     }
 
     throwUp() {
-        // Create a throw-up visual effect
+        // Create a throw-up visual effect that stays until cleaned
         const vomitGraphics = this.scene.add.graphics();
         vomitGraphics.fillStyle(0x8B7355, 1);
 
@@ -240,15 +305,20 @@ class Cat {
 
         vomitGraphics.setDepth(1);
 
-        // Fade out and destroy after 5 seconds
-        this.scene.tweens.add({
-            targets: vomitGraphics,
-            alpha: 0,
-            duration: 5000,
-            onComplete: () => {
-                vomitGraphics.destroy();
-            }
-        });
+        // Store position for cleaning
+        vomitGraphics.setData('gridX', this.gridX);
+        vomitGraphics.setData('gridY', this.gridY);
+        vomitGraphics.setData('isVomit', true);
+
+        // Make it interactive so we can detect mop drops on it
+        vomitGraphics.setInteractive(new Phaser.Geom.Circle(this.sprite.x, this.sprite.y, 30), Phaser.Geom.Circle.Contains);
+
+        // Add to global vomit array (will be created in game.js)
+        if (this.scene.vomitSplatters) {
+            this.scene.vomitSplatters.push(vomitGraphics);
+        }
+
+        console.log(`${this.name} created vomit splatter at (${this.gridX}, ${this.gridY})`);
     }
 
     showStats() {
@@ -376,7 +446,7 @@ class Cat {
         }
     }
 
-    update(roomWidth, roomHeight, foodItems, beds, otherCats) {
+    update(roomWidth, roomHeight, foodItems, beds, otherCats, litterBoxes) {
         // Update stats display if visible
         if (this.showingStats) {
             this.updateStatsDisplay();
@@ -450,6 +520,22 @@ class Cat {
             return;
         }
 
+        // Handle litter box timer
+        if (this.litterBoxTimer > 0) {
+            this.litterBoxTimer--;
+            if (this.litterBoxTimer === 0) {
+                this.isUsingLitterBox = false;
+                this.needsLitterBox = false;
+                console.log(`${this.name} finished using litter box. Count still: ${this.foodEatenCount}`);
+                // DON'T reset foodEatenCount here - keep counting toward 7
+                if (this.currentLitterBox) {
+                    this.currentLitterBox.occupied = false;
+                    this.currentLitterBox = null;
+                }
+            }
+            return;
+        }
+
         // Handle sleeping timer
         if (this.sleepTimer > 0) {
             this.sleepTimer--;
@@ -482,31 +568,40 @@ class Cat {
                 this.targetFood = null;
                 // Eating a full meal resets hunger to 0
                 this.hunger = 0;
+
+                // Track food eaten for litter box system
+                this.foodEatenCount++;
+                console.log(`${this.name} ate food. Count: ${this.foodEatenCount}`);
+                console.log(`Checking vomit condition: foodEatenCount >= 7? ${this.foodEatenCount >= 7}`);
+                console.log(`Checking litter box condition: foodEatenCount >= 3 && foodEatenCount % 3 === 0? ${this.foodEatenCount >= 3 && this.foodEatenCount % 3 === 0}`);
+
+                // Check if cat has eaten 7 pieces - time to vomit!
+                if (this.foodEatenCount >= 7) {
+                    console.log(`${this.name} ate too much (${this.foodEatenCount} pieces)! Getting sick...`);
+                    this.isSick = true;
+                    this.sickTimer = 180; // Sick for 3 seconds
+                    this.isMoving = false;
+                    this.sprite.play(`${this.catType}_idle_anim`);
+                    this.showSickIndicator();
+                    this.throwUp();
+                    this.foodEatenCount = 0; // Reset counter after vomiting
+                    this.hunger = Math.min(50, this.hunger + 20); // Increase hunger after vomiting
+                    console.log(`${this.name} vomited and food count reset to 0`);
+                } else if (this.foodEatenCount >= 3 && this.foodEatenCount % 3 === 0) {
+                    // Every 3 pieces (3, 6), need litter box
+                    this.needsLitterBox = true;
+                    console.log(`${this.name} needs litter box!`);
+                }
             }
             return;
         }
 
-        // Check for nearby food (reached food)
-        if (!this.isEating && foodItems) {
+        // Check for nearby food (reached food, but not if they need litter box)
+        if (!this.isEating && !this.needsLitterBox && foodItems) {
             for (let food of foodItems) {
                 if (food.checkCollision(this)) {
-                    // Check if cat is already full (hunger < 20)
-                    if (this.hunger < 20) {
-                        // Cat is too full, gets sick!
-                        this.isSick = true;
-                        this.sickTimer = 180; // Sick for 3 seconds
-                        this.isMoving = false;
-                        this.sprite.play(`${this.catType}_idle_anim`);
-                        this.showSickIndicator();
-                        this.throwUp();
-                        food.eat(); // Still consume the food
-                        this.targetFood = null;
-                        // Increase hunger a bit due to sickness
-                        this.hunger = Math.min(30, this.hunger + 15);
-                        return;
-                    }
-
-                    // Found food nearby and hungry enough, start eating
+                    // Found food nearby, start eating
+                    console.log(`${this.name} starting to eat. Current count: ${this.foodEatenCount}`);
                     this.isEating = true;
                     this.eatingTimer = 90; // Eat for 1.5 seconds
                     this.isMoving = false;
@@ -519,8 +614,8 @@ class Cat {
             }
         }
 
-        // Check for fresh food to target (wakes up sleeping cats)
-        if (!this.targetFood && foodItems) {
+        // Check for fresh food to target (wakes up sleeping cats, unless they need litter box)
+        if (!this.targetFood && !this.needsLitterBox && foodItems) {
             for (let food of foodItems) {
                 if (food.isFresh && !food.claimed && !food.eaten) {
                     // Found fresh unclaimed food, wake up and run to it
@@ -572,6 +667,53 @@ class Cat {
                     otherCat.showPlayIndicator();
                     return;
                 }
+            }
+        }
+
+        // Check for litter boxes (priority over beds and wandering)
+        if (this.needsLitterBox && !this.isUsingLitterBox && litterBoxes) {
+            console.log(`${this.name} is seeking litter box...`);
+            // First check if already near a litter box
+            for (let litterBox of litterBoxes) {
+                if (!litterBox.occupied && litterBox.checkNearby(this)) {
+                    // Found an empty litter box nearby, use it!
+                    console.log(`${this.name} is using litter box!`);
+                    this.isUsingLitterBox = true;
+                    this.litterBoxTimer = 120; // Use litter box for 2 seconds
+                    this.currentLitterBox = litterBox;
+                    litterBox.occupied = true;
+                    this.isMoving = false;
+                    this.sprite.play(`${this.catType}_idle_anim`);
+
+                    // Add waste to litter box (randomly poop or pee)
+                    const wasteType = Math.random() > 0.5 ? 'poop' : 'pee';
+                    litterBox.addWaste(this.scene, wasteType);
+                    return;
+                }
+            }
+
+            // Not near a litter box, find closest one and walk to it
+            let closestLitterBox = null;
+            let closestDistance = Infinity;
+            for (let litterBox of litterBoxes) {
+                if (!litterBox.occupied) {
+                    const distance = Math.sqrt(
+                        Math.pow(this.gridX - litterBox.gridX, 2) +
+                        Math.pow(this.gridY - litterBox.gridY, 2)
+                    );
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestLitterBox = litterBox;
+                    }
+                }
+            }
+
+            // Set target to closest litter box
+            if (closestLitterBox) {
+                console.log(`${this.name} walking to litter box at (${closestLitterBox.gridX}, ${closestLitterBox.gridY})`);
+                this.targetX = closestLitterBox.gridX;
+                this.targetY = closestLitterBox.gridY;
+                this.waitTimer = 0;
             }
         }
 

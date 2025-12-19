@@ -25,7 +25,9 @@ let cats = [];
 let foodItems = [];
 let beds = [];
 let carpets = [];
+let litterBoxes = [];
 let roomTiles = [];
+let vomitSplatters = [];
 let gameScene = null;
 let foodMenu = [];
 let bedMenu = [];
@@ -119,6 +121,9 @@ function create() {
     // Store scene reference
     gameScene = this;
 
+    // Make vomit array accessible to scene
+    this.vomitSplatters = vomitSplatters;
+
     // Create animations for all cat types
     Object.keys(CAT_TYPES).forEach(catType => {
         // Idle animation
@@ -186,6 +191,13 @@ function create() {
     // Create furniture (pass occupied positions to avoid overlaps)
     // Disabled placeholder furniture - users will place their own items
     // createFurnitureWithSpacing(this, occupiedPositions);
+
+    // Create litter box in a visible corner
+    const litterBoxX = 2; // Near left side
+    const litterBoxY = 2; // Near top - more visible
+    litterBoxes.push(new LitterBox(this, litterBoxX, litterBoxY));
+    occupiedPositions.push({ x: litterBoxX, y: litterBoxY });
+    console.log('Created litter box at:', litterBoxX, litterBoxY);
 
     // Create cats with random sprites
     const catTypeKeys = Object.keys(CAT_TYPES);
@@ -338,6 +350,6 @@ function update() {
 
     // Update all cats
     cats.forEach(cat => {
-        cat.update(ROOM_WIDTH, ROOM_HEIGHT, foodItems, beds, cats);
+        cat.update(ROOM_WIDTH, ROOM_HEIGHT, foodItems, beds, cats, litterBoxes);
     });
 }

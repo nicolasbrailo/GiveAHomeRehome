@@ -59,8 +59,29 @@ function createFoodMenu(scene) {
         bedMenu.push(bedIcon);
     }
 
+    // Add mop icon for cleaning vomit
+    const mopX = bedStartX + BED_TYPES * spacing;
+    console.log(`Mop icon position: x=${mopX}, y=${menuY}`);
+    const mopIcon = scene.add.text(mopX, menuY, '🧹', {
+        fontSize: '40px'
+    });
+    mopIcon.setOrigin(0.5);
+    mopIcon.setInteractive({ draggable: true });
+    mopIcon.setDepth(1001);
+    mopIcon.setScrollFactor(0);
+    mopIcon.setData('itemType', 'mop');
+    console.log('Mop icon created successfully');
+
+    // Add hover effect
+    mopIcon.on('pointerover', function() {
+        this.setScale(1.2);
+    });
+    mopIcon.on('pointerout', function() {
+        this.setScale(1.0);
+    });
+
     // Add instruction text
-    const instructions = scene.add.text(400, 55, 'Drag food and beds into the room!', {
+    const instructions = scene.add.text(400, 55, 'Drag food, beds, and mop into the room!', {
         fontSize: '14px',
         color: '#ecf0f1'
     });
@@ -112,6 +133,14 @@ function setupDragAndDrop(scene) {
                 }
                 bedInstance.occupied = false;
             }
+        } else if (itemType === 'mop') {
+            draggedItemSprite = scene.add.text(0, 0, '🧹', {
+                fontSize: '40px'
+            });
+            draggedItemSprite.setOrigin(0.5);
+            draggedItemType = 'mop';
+            draggedItemFrame = null;
+            draggedBedInstance = null;
         }
 
         if (draggedItemSprite) {
@@ -159,6 +188,32 @@ function setupDragAndDrop(scene) {
                         // Create new bed at dropped location
                         const bed = new Bed(scene, gridPos.x, gridPos.y, draggedItemFrame);
                         beds.push(bed);
+                    } else if (draggedItemType === 'mop') {
+                        // Check if mop is near any vomit splatters
+                        let cleanedCount = 0;
+                        vomitSplatters = vomitSplatters.filter(vomit => {
+                            const vomitGridX = vomit.getData('gridX');
+                            const vomitGridY = vomit.getData('gridY');
+                            const distance = Math.sqrt(
+                                Math.pow(gridPos.x - vomitGridX, 2) +
+                                Math.pow(gridPos.y - vomitGridY, 2)
+                            );
+
+                            if (distance < 2.0) {
+                                // Close enough to clean
+                                console.log(`Cleaning vomit at (${vomitGridX}, ${vomitGridY})`);
+                                vomit.destroy();
+                                cleanedCount++;
+                                return false; // Remove from array
+                            }
+                            return true; // Keep in array
+                        });
+
+                        if (cleanedCount > 0) {
+                            console.log(`Cleaned ${cleanedCount} vomit splatter(s)!`);
+                        } else {
+                            console.log('No vomit nearby to clean');
+                        }
                     }
                 } else {
                     console.log(`${draggedItemType} placement out of bounds: grid (${gridPos.x}, ${gridPos.y})`);
